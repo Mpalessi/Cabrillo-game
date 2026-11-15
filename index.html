@@ -1,0 +1,198 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cabrillo College Memory Match</title>
+<style>
+:root {
+  --navy:#101a35; --panel:#1b294b; --gold:#ffd166;
+  --mint:#72e6c1; --text:#f5f7ff; --muted:#b9c5df;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; min-height:100vh; padding:28px 16px 40px;
+  color:var(--text); font-family:system-ui,sans-serif;
+  background:radial-gradient(circle at 15% 10%,#344d82 0,transparent 35%),
+  radial-gradient(circle at 90% 85%,#49346f 0,transparent 35%),var(--navy);
+}
+.wrap { width:min(720px,100%); margin:0 auto; }
+header { text-align:center; margin-bottom:22px; }
+.school {
+  display:inline-block; padding:7px 14px;
+  border:1px solid #ffffff40; border-radius:999px;
+  color:var(--gold); font-size:.85rem; font-weight:800;
+  letter-spacing:.08em; text-transform:uppercase;
+}
+h1 { margin:14px 0 6px; font-size:clamp(2rem,7vw,3.25rem); }
+header p,.instructions { color:var(--muted); }
+.panel {
+  background:rgba(27,41,75,.94); border:1px solid #ffffff22;
+  border-radius:22px; padding:20px;
+  box-shadow:0 18px 50px #0004;
+}
+.stats { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px; }
+.stat { text-align:center; padding:11px 6px; border-radius:14px; background:#ffffff12; }
+.stat span { display:block; color:var(--muted); font-size:.78rem; }
+.stat strong { display:block; margin-top:3px; font-size:1.35rem; color:var(--gold); }
+.board { display:grid; grid-template-columns:repeat(4,1fr); gap:11px; }
+.card {
+  aspect-ratio:1; border:0; border-radius:15px; cursor:pointer;
+  color:white; background:linear-gradient(145deg,#4967a4,#2b3f70);
+  box-shadow:0 5px 0 #1b2b50;
+  font-size:clamp(1.8rem,7vw,3rem);
+  display:grid; place-items:center; transition:transform .16s;
+}
+.card:hover:not(:disabled) { transform:translateY(-3px); }
+.card:focus-visible,button:focus-visible { outline:3px solid var(--gold); outline-offset:3px; }
+.card.revealed { background:#f4f6ff; color:#172343; box-shadow:0 5px 0 #c4cce0; }
+.card.matched { background:#b8f5df; color:#123b35; box-shadow:0 5px 0 #69c9a9; cursor:default; }
+.card:disabled { cursor:default; }
+.controls { display:flex; justify-content:center; margin-top:20px; }
+.restart {
+  border:0; border-radius:999px; padding:12px 24px;
+  background:var(--gold); color:#1b2540; font-size:1rem;
+  font-weight:800; cursor:pointer; box-shadow:0 4px 0 #c28d2e;
+}
+.message { min-height:28px; margin:16px 0 0; text-align:center; color:var(--mint); font-weight:700; }
+.instructions { text-align:center; margin:16px 0 0; font-size:.9rem; }
+footer { text-align:center; color:var(--muted); font-size:.8rem; margin-top:18px; }
+@media(max-width:420px) {
+  body { padding:18px 10px 28px; }
+  .panel { padding:13px; border-radius:18px; }
+  .board { gap:8px; }
+  .card { border-radius:11px; }
+  .stats { gap:6px; }
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+<header>
+<div class="school">Cabrillo College</div>
+<h1>Memory Match</h1>
+<p>Find all 8 matching pairs. How fast can you do it?</p>
+</header>
+<section class="panel" aria-label="Memory match game">
+<div class="stats" aria-live="polite">
+<div class="stat"><span>Moves</span><strong id="moves">0</strong></div>
+<div class="stat"><span>Time</span><strong id="time">00:00</strong></div>
+<div class="stat"><span>Pairs</span><strong id="pairs">0 / 8</strong></div>
+</div>
+<div class="board" id="board" aria-label="Sixteen memory cards"></div>
+<p class="message" id="message" role="status">Choose any two cards to find a match!</p>
+<div class="controls">
+<button class="restart" id="restart" type="button">↻ New Game</button>
+</div>
+<p class="instructions">Tip: Remember where each symbol is. Matching pairs stay face up!</p>
+</section>
+<footer>Made for a Cabrillo College participation exercise</footer>
+</main>
+<script>
+const symbols=["🌊","🐬","🌴","⭐","🐚","🦀","☀️","🏄"];
+const board=document.getElementById("board");
+const movesDisplay=document.getElementById("moves");
+const timeDisplay=document.getElementById("time");
+const pairsDisplay=document.getElementById("pairs");
+const message=document.getElementById("message");
+const restartButton=document.getElementById("restart");
+
+let firstCard=null, secondCard=null, lockBoard=false;
+let moves=0, matchedPairs=0, seconds=0, timer=null, started=false;
+
+function shuffle(items) {
+ const shuffled=[...items];
+ for(let i=shuffled.length-1;i>0;i--) {
+  const j=Math.floor(Math.random()*(i+1));
+  [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];
+ }
+ return shuffled;
+}
+function formatTime(totalSeconds) {
+ const mins=Math.floor(totalSeconds/60).toString().padStart(2,"0");
+ const secs=(totalSeconds%60).toString().padStart(2,"0");
+ return `${mins}:${secs}`;
+}
+function startTimer() {
+ if(started)return;
+ started=true;
+ timer=setInterval(()=>{
+  seconds++;
+  timeDisplay.textContent=formatTime(seconds);
+ },1000);
+}
+function createCard(symbol,index) {
+ const card=document.createElement("button");
+ card.className="card";
+ card.type="button";
+ card.textContent="?";
+ card.dataset.symbol=symbol;
+ card.setAttribute("aria-label",`Card ${index+1}, hidden`);
+ card.addEventListener("click",()=>flipCard(card));
+ return card;
+}
+function flipCard(card) {
+ if(lockBoard||card===firstCard||card.classList.contains("matched")||
+ card.classList.contains("revealed"))return;
+ startTimer();
+ card.classList.add("revealed");
+ card.textContent=card.dataset.symbol;
+ card.setAttribute("aria-label",`Revealed ${card.dataset.symbol}`);
+ if(!firstCard) {
+  firstCard=card;
+  return;
+ }
+ secondCard=card;
+ moves++;
+ movesDisplay.textContent=moves;
+ if(firstCard.dataset.symbol===secondCard.dataset.symbol) {
+  firstCard.classList.add("matched");
+  secondCard.classList.add("matched");
+  firstCard.disabled=true;
+  secondCard.disabled=true;
+  matchedPairs++;
+  pairsDisplay.textContent=`${matchedPairs} / 8`;
+  resetTurn();
+  if(matchedPairs===8) {
+   clearInterval(timer);
+   const rating=moves<=12?"Amazing memory!":moves<=20?"Great job!":"Well played!";
+   message.textContent=`🎉 You won in ${moves} moves and ${formatTime(seconds)}! ${rating}`;
+  } else {
+   message.textContent="Match found! Keep going!";
+  }
+ } else {
+  lockBoard=true;
+  message.textContent="Not a match. Try to remember those cards!";
+  setTimeout(()=>{
+   firstCard.classList.remove("revealed");
+   secondCard.classList.remove("revealed");
+   firstCard.textContent="?";
+   secondCard.textContent="?";
+   firstCard.setAttribute("aria-label","Hidden card");
+   secondCard.setAttribute("aria-label","Hidden card");
+   resetTurn();
+  },850);
+ }
+}
+function resetTurn() {
+ [firstCard,secondCard]=[null,null];
+ lockBoard=false;
+}
+function newGame() {
+ clearInterval(timer);
+ firstCard=null; secondCard=null; lockBoard=false;
+ moves=0; matchedPairs=0; seconds=0; started=false; timer=null;
+ movesDisplay.textContent="0";
+ timeDisplay.textContent="00:00";
+ pairsDisplay.textContent="0 / 8";
+ message.textContent="Choose any two cards to find a match!";
+ board.innerHTML="";
+ const deck=shuffle([...symbols,...symbols]);
+ deck.forEach((symbol,index)=>board.appendChild(createCard(symbol,index)));
+}
+restartButton.addEventListener("click",newGame);
+newGame();
+</script>
+</body>
+</html>
